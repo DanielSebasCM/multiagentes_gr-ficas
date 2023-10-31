@@ -1,1 +1,1 @@
-# multiagentes_gr-ficas
+# multiagentes_graficas
