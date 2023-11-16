@@ -96,7 +96,7 @@ public class Boss : MonoBehaviour
 
     IEnumerator Waves()
     {
-        return Shoot(60, 10f, 0.7f, 5);
+        return Shoot(50, 10f, 0.7f, 5);
     }
 
     IEnumerator Swirl()
@@ -106,7 +106,7 @@ public class Boss : MonoBehaviour
 
     IEnumerator StarPulse()
     {
-        return Shoot(60, 10f, 0.7f, 30f, SmoothSpikes);
+        return Shoot(50, 10f, 0.7f, 30f, SmoothSpikes);
     }
 
     float SmoothSpikes(float angle)

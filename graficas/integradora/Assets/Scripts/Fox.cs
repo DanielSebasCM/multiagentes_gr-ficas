@@ -38,7 +38,6 @@ public class Fox : MonoBehaviour
         attacks = new List<Func<IEnumerator>> { Swirl, Waves, Swirl };
         animations = new List<string> { "Fox_Attack_Paws", "Fox_Attack_Tail", "Fox_Attack_Paws" };
         currentAttack = 0;
-
         StartCoroutine(Run());
     }
 
@@ -106,7 +105,7 @@ public class Fox : MonoBehaviour
 
     IEnumerator Waves()
     {
-        return Shoot(30, 8f, 1f, 5);
+        return Shoot(20, 8f, 2f, 5);
     }
 
     IEnumerator Swirl()
