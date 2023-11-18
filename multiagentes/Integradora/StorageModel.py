@@ -6,14 +6,17 @@ import math
 
 import numpy as np
 
+# Funcion para calcular la distancia ortogonal entre dos posiciones
 def ortogonalDistance(pos_1: tuple[int, int], pos_2: tuple[int, int]):
     return abs(pos_1[0] - pos_2[0]) + abs(pos_1[1] - pos_2[1])
 
+# Constantes para el estado de los agentes 
 EXPLORING = 0
 COLLECTING = 1
 DEPOSITING = 2
 
 
+# Clase para los agentes
 class Agent(Agent):
 
     def __init__(self, id, model: "StorageModel"):
@@ -25,20 +28,14 @@ class Agent(Agent):
         self.collectionSource = None
         self.steps = 0
         self.sleep = 0
+        self.lastDrop = None
 
+    # Funcion para el paso de la simulacion
     def step(self):
         self.steps += 1
         self.scan()
 
-        if self.state == -1:
-            return
-
-
-        if self.sleep > 0:
-            self.move(None)
-            self.sleep -= 1
-            return
-
+        # Dependiendo del estado del agente, se ejecuta la funcion correspondiente
         if self.state == DEPOSITING:
             self.deposit()
         elif self.state == COLLECTING:
@@ -46,23 +43,30 @@ class Agent(Agent):
         else:
             self.explore()
 
+    # Funcion para explorar el almacen
     def explore(self):
         smallestTowers = self.findSmallestTowers()
+        # Si encuentra una torre con altura menor a la maxima, se cambia al estado de recoleccion
         if len(smallestTowers) > 0:
             self.state = COLLECTING
             self.collect()
             return
 
+        # Si no, se mueve aleatoriamente
         self.move(None)
     
+    # Funcion para recolectar cajas
     def collect(self):
         smallestTowers = self.findSmallestTowers()
-
+        smallestTowers = list(filter(lambda tower: tuple(tower) != self.lastDrop, smallestTowers))
+        
+        # Si no hay torres con altura menor a la maxima, se cambia al estado de exploracion
         if len(smallestTowers) == 0:
             self.state = EXPLORING
-            self.explore()
+            self.move(None)
             return
         
+        # Si una de las posibles torres está al alcance, se recolecta una caja
         neighbourCells = self.model.grid.get_neighborhood(
             self.pos, moore=False, include_center=False)
         
@@ -73,11 +77,15 @@ class Agent(Agent):
                 self.model.known[cell[0]][cell[1]] -= 1
                 self.state = DEPOSITING
                 return
-        
+            
+        # Si no, se mueve hacia la torre más cercana
         smallestTowers.sort(key=lambda x: ortogonalDistance(x, self.pos))
         self.move(smallestTowers[0])
 
+    # Funcion para depositar cajas
     def deposit(self):
+
+        # Si no está cargando cajas, se cambia al estado de exploracion 
         if self.boxes_carried == 0:
             self.state = EXPLORING
             self.explore()
@@ -85,25 +93,12 @@ class Agent(Agent):
     
         biggestTowers = self.findBiggestTowers()
 
+        # Si no tiene donde depositar, se mueve aleatoriamente
         if len(biggestTowers) == 0:
-            if self.model.columns >= self.model.maxColumns - 1:
-                neighbourCells = self.model.grid.get_neighborhood(
-                    self.pos, moore=False, include_center=False)
-                
-                for cell in neighbourCells:
-                    if self.model.is_space_empty(cell):
-                        self.model.real[cell[0]][cell[1]] += self.boxes_carried
-                        self.model.known[cell[0]][cell[1]] += self.boxes_carried
-                        self.boxes_carried = 0
-                        self.state = EXPLORING
-                        break
-                self.sleep = 10
-            else: 
-                self.move(None)
+            self.move(None)
             return
-            
-
-
+        
+        # Si una de las posibles torres está al alcance, se deposita una caja
         neighbourCells = self.model.grid.get_neighborhood(
             self.pos, moore=False, include_center=False)
         
@@ -113,12 +108,14 @@ class Agent(Agent):
                 self.model.known[cell[0]][cell[1]] += self.boxes_carried
                 self.boxes_carried = 0
                 self.state = EXPLORING
-                self.sleep = 10
+                self.lastDrop = (cell[0], cell[1])
                 return
         
+        # Si no, se mueve hacia la torre más cercana
         biggestTowers.sort(key=lambda x: ortogonalDistance(x, self.pos))
         self.move(biggestTowers[0])
 
+    # Funcion para encontrar las torres más pequeñas
     def findSmallestTowers(self):
         smallestTower = math.inf
         smallestTowers = []
@@ -136,6 +133,7 @@ class Agent(Agent):
 
         return smallestTowers
 
+    # Funcion para encontrar las torres más grandes
     def findBiggestTowers(self):
         biggestTower = 0
         biggestTowers = []
@@ -153,6 +151,7 @@ class Agent(Agent):
 
         return biggestTowers
 
+    # Funcion para moverse a una posicion, si es posible, si no a la más cercana
     def move(self, cell: tuple[int, int]):
         if cell == None:
             cell = self.getRandomPossibleMove()
@@ -170,6 +169,7 @@ class Agent(Agent):
             possibleMoves.sort(key=lambda x: ortogonalDistance(x, cell))
             self.model.grid.move_agent(self, possibleMoves[0])
                
+    # Funcion para obtener las posiciones posibles a las que se puede mover
     def getPossibleMoves(self):
         neighbourCells = self.model.grid.get_neighborhood(
         self.pos, moore=False, include_center=False)
@@ -177,6 +177,7 @@ class Agent(Agent):
             cell for cell in neighbourCells if self.model.is_space_empty(cell)]
         return emptyNeighbours
 
+    # Funcion obtener una posicion aleatoria a la que se puede mover
     def getRandomPossibleMove(self):
         possibleMoves = self.getPossibleMoves()
         if len(possibleMoves) > 0:
@@ -185,6 +186,7 @@ class Agent(Agent):
         else:
             return None
 
+    # Funcion para escanear las posiciones alrededor del agente
     def scan(self):
         neighbourCells = self.model.grid.get_neighborhood(
             self.pos, moore=False, include_center=False)
@@ -256,10 +258,10 @@ class StorageModel(Model):
         return self.real.copy()
 
     def get_agents(self):
-        grid = np.zeros((self.width, self.height))
+        grid = np.full((self.width, self.height), False, dtype=bool)
         for (content, (x, y)) in self.grid.coord_iter():
             if content != None:
-                grid[x][y] = 1
+                grid[x][y] = True
         return grid
 
     def get_data(self):
